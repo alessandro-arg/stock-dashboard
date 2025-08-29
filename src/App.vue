@@ -23,8 +23,12 @@ export default {
 }
 
 #app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: linear-gradient(135deg, #0a0e1a 0%, #1a1f2e 100%);
+  color: #ffffff;
+  min-height: 100vh;
+  overflow-x: hidden;
 }
 </style>
