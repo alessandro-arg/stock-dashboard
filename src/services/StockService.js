@@ -3,24 +3,54 @@ import axios from "axios";
 const api = axios.create({
   baseURL: "https://sheetdb.io/api/v1/pzq4zwvekqhqp",
   headers: { "Content-Type": "application/json" },
+  timeout: 15000,
 });
 
-const DOLLAR_PREFIX = true;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/**
- * Fetch a whole sheet (tab) by name, e.g. "AAPL"
- * Returns an array of row objects from SheetDB.
- */
-export async function getSheetByName(sheetName) {
-  const sheetParam = DOLLAR_PREFIX ? `$${sheetName}` : sheetName;
-  const { data } = await api.get("/", { params: { sheet: sheetParam } });
-  return data;
+/** Fetch rows from a $TICKER tab (e.g. ?sheet=$AAPL) with retry/backoff. */
+export async function getSheetByTicker(ticker, tries = 3) {
+  let lastErr;
+  for (let attempt = 1; attempt <= tries; attempt++) {
+    try {
+      const { data } = await api.get("/", {
+        params: { sheet: `$${ticker}`, _ts: Date.now() },
+      });
+      return Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+        ? data.data
+        : [];
+    } catch (err) {
+      lastErr = err;
+      await sleep(250 * attempt * attempt);
+    }
+  }
+  console.warn(
+    `getSheetByTicker(${ticker}) failed:`,
+    lastErr?.message || lastErr
+  );
+  return [];
 }
 
-/**
- * Convenience: fetch many sheets in parallel (e.g. Magnificent 7).
- */
-export async function getManySheets(sheetNames = []) {
-  const results = await Promise.all(sheetNames.map(getSheetByName));
-  return results;
+/** Fetch rows from a **named** tab (no $), e.g. "Market". */
+export async function getSheetByName(name, tries = 3) {
+  let lastErr;
+  for (let attempt = 1; attempt <= tries; attempt++) {
+    try {
+      const { data } = await api.get("/", {
+        params: { sheet: name, _ts: Date.now() },
+      });
+      return Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+        ? data.data
+        : [];
+    } catch (err) {
+      lastErr = err;
+      await sleep(250 * attempt * attempt);
+    }
+  }
+  console.warn(`getSheetByName(${name}) failed:`, lastErr?.message || lastErr);
+  return [];
 }
