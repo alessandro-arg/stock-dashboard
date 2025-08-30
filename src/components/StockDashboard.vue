@@ -37,7 +37,80 @@
   </div>
 </template>
 
-<script></script>
+<script setup>
+import { ref, onMounted } from "vue";
+import { getManySheets } from "@/services/StockService";
+
+const symbols = ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA"];
+
+const loading = ref(true);
+const companies = ref([]);
+
+const revenueGrowthData = ref({ labels: [], datasets: [] });
+const marketShareData = ref({ labels: [], datasets: [] });
+const netIncomeMetrics = ref([]);
+const grossMarginMetrics = ref([]);
+
+async function load() {
+  loading.value = true;
+  try {
+    const results = await getManySheets(symbols);
+    companies.value = results.map((rows, idx) => {
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      return {
+        symbol: symbols[idx],
+        name: row?.name || row?.company || symbols[idx],
+        price: Number(row?.price ?? row?.last ?? 0),
+        change: Number(row?.change ?? row?.chg ?? 0),
+        marketCap: Number(row?.market_cap ?? row?.marketcap ?? 0),
+        // Add whatever else your <StockCard> expects
+      };
+    });
+
+    // Example chart: Revenue growth over time by symbol.
+    // Expecting each sheet to have rows with e.g. "year" and "revenue"
+    // If your schema differs, adjust field names below.
+    const timeLabels = Array.isArray(results[0])
+      ? results[0].map((r) => r.year ?? r.period ?? "")
+      : [];
+
+    revenueGrowthData.value = {
+      labels: timeLabels,
+      datasets: results.map((rows, i) => ({
+        label: symbols[i],
+        data: (rows || []).map((r) => Number(r.revenue ?? r.revenue_ttm ?? 0)),
+      })),
+    };
+
+    // Example doughnut: market share using market cap (fallback to price)
+    marketShareData.value = {
+      labels: companies.value.map((c) => c.symbol),
+      datasets: [
+        {
+          data: companies.value.map((c) => c.marketCap || c.price || 0),
+        },
+      ],
+    };
+
+    // Example metrics (fill with your real columns)
+    netIncomeMetrics.value = companies.value.map((c) => ({
+      label: c.symbol,
+      value: "—", // set to row?.net_income_ttm if available
+    }));
+
+    grossMarginMetrics.value = companies.value.map((c) => ({
+      label: c.symbol,
+      value: "—", // set to row?.gross_margin_pct if available
+    }));
+  } catch (err) {
+    console.error(err);
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(load);
+</script>
 
 <style scoped>
 .dashboard {
