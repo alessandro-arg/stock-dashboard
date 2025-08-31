@@ -15,25 +15,6 @@
         :company="company"
       />
     </section>
-
-    <!-- <section class="charts-section">
-      <ChartComponent
-        title="Revenue Growth Over Time"
-        type="line"
-        :data="revenueGrowthData"
-      />
-
-      <ChartComponent
-        title="Market Share Distribution"
-        type="doughnut"
-        :data="marketShareData"
-      />
-    </section> -->
-
-    <!-- <section class="metrics-grid">
-      <MetricsCard title="Net Income (TTM)" :metrics="netIncomeMetrics" />
-      <MetricsCard title="Gross Margin %" :metrics="grossMarginMetrics" />
-    </section> -->
   </div>
 </template>
 
@@ -45,16 +26,22 @@ import { getSheetByTicker, getSheetByName } from "@/services/StockService";
 const loading = ref(true);
 const companies = ref([]);
 
+// --- all 7 tickers + the exact rows (“Zeile”) you gave ---
 const TICKERS = ["AAPL", "MSFT", "GOOG", "AMZN", "META", "NVDA", "TSLA"];
+const ROWS = {
+  AAPL: { revenue: 5, netIncome: 36, grossMargin: 23 },
+  MSFT: { revenue: 9, netIncome: 30, grossMargin: 15 },
+  GOOG: { revenue: 5, netIncome: 41, grossMargin: 25 },
+  AMZN: { revenue: 9, netIncome: 41, grossMargin: 15 },
+  META: { revenue: 5, netIncome: 27, grossMargin: 11 },
+  NVDA: { revenue: 5, netIncome: 29, grossMargin: 11 },
+  TSLA: { revenue: 13, netIncome: 44, grossMargin: 26 },
+};
+// try aliases in case some tabs are named differently
 const ALIASES = { GOOG: ["GOOGL"], GOOGL: ["GOOG"], META: ["FB"] };
 
 const meta = {
-  AAPL: {
-    name: "Apple",
-    color: "#007AFF",
-    class: "apple",
-    logo: "apple.png",
-  },
+  AAPL: { name: "Apple", color: "#007AFF", class: "apple", logo: "apple.png" },
   MSFT: {
     name: "Microsoft",
     color: "#00BCF2",
@@ -62,7 +49,7 @@ const meta = {
     logo: "microsoft.png",
   },
   GOOG: {
-    name: "Google",
+    name: "Alphabet",
     color: "#4285F4",
     class: "google",
     logo: "google.png",
@@ -73,35 +60,25 @@ const meta = {
     class: "amazon",
     logo: "amazon.png",
   },
-  META: {
-    name: "Meta",
-    color: "#1877F2",
-    class: "meta",
-    logo: "meta.png",
-  },
+  META: { name: "Meta", color: "#1877F2", class: "meta", logo: "meta.png" },
   NVDA: {
     name: "Nvidia",
     color: "#76B900",
     class: "nvidia",
     logo: "nvidia.png",
   },
-  TSLA: {
-    name: "Tesla",
-    color: "#CC0000",
-    class: "tesla",
-    logo: "tesla.png",
-  },
+  TSLA: { name: "Tesla", color: "#CC0000", class: "tesla", logo: "tesla.png" },
 };
 
 // ---------- utils ----------
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const num = (v, def = 0) => {
   if (v == null || v === "") return def;
-  const s = String(v).trim().replace(/\s/g, "").replace(/,/g, "."); // handle EU/US decimals
+  const s = String(v).trim().replace(/\s/g, "").replace(/,/g, ".");
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : def;
 };
-const pct = (v, def = 0) => num(String(v ?? "").replace("%", ""), def);
+const pct = (v, d = 0) => num(String(v ?? "").replace("%", ""), d);
 const fmtAbbr = (n) => {
   const a = Math.abs(n);
   if (a >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
@@ -110,105 +87,73 @@ const fmtAbbr = (n) => {
   if (a >= 1e3) return `$${(n / 1e3).toFixed(2)}K`;
   return `$${n.toFixed(2)}`;
 };
+const headerKey = (rows) => Object.keys(rows?.[0] || {})[0] || "";
 
-// Return the likely **label column** (first column header) for the $TICKER tab.
-function detectLabelKey(rows) {
-  if (!rows?.length) return null;
-  const keys = Object.keys(rows[0]);
-  // first key that is NOT a quarter (i.e., not looking like "2024Q3" or a date)
-  return keys[0];
-}
+// take the **right-most numeric** cell from a given sheet row number
+function latestFromSheetRow(rows, sheetRowNumber) {
+  if (!rows?.length || !sheetRowNumber) return { value: 0, key: "" };
+  const idx = Math.max(0, sheetRowNumber - 2); // convert “Zeile” -> array index
+  const row = rows[idx];
+  if (!row) return { value: 0, key: "" };
 
-// Find a row by label substring (case-insensitive) and return the **rightmost numeric** value in that row.
-function lastNumericFromRow(rows, labelKey, needle) {
-  if (!rows?.length || !labelKey) return 0;
-  const row = rows.find((r) =>
-    String(r?.[labelKey] || "")
-      .toLowerCase()
-      .includes(needle)
-  );
-  if (!row) return 0;
-
-  let last = 0;
+  const label = headerKey(rows);
+  let last = 0,
+    lastKey = "";
   for (const [k, v] of Object.entries(row)) {
-    if (k === labelKey) continue;
+    if (k === label) continue;
     const n = num(v);
-    if (Number.isFinite(n) && n !== 0) last = n; // keep the rightmost numeric (latest quarter)
-  }
-  return last;
-}
-
-async function fetchFundamentals(sym) {
-  // try main ticker + aliases
-  const tries = [sym, ...(ALIASES[sym] || [])];
-  for (const t of tries) {
-    const rows = await getSheetByTicker(t);
-    if (!rows?.length) {
-      await sleep(120);
-      continue;
+    if (Number.isFinite(n)) {
+      last = n;
+      lastKey = k;
     }
-
-    const labelKey = detectLabelKey(rows) || "Metric";
-
-    // Revenue (prefer "Total Revenue", fallback to any "revenue")
-    let revenue = lastNumericFromRow(rows, labelKey, "total revenue");
-    if (!revenue) revenue = lastNumericFromRow(rows, labelKey, "revenue");
-
-    // Net income (fallbacks for "net profit"/"income (net)")
-    let netIncome = lastNumericFromRow(rows, labelKey, "net income");
-    if (!netIncome)
-      netIncome = lastNumericFromRow(rows, labelKey, "net profit");
-    if (!netIncome)
-      netIncome = lastNumericFromRow(rows, labelKey, "income (net)");
-
-    // Gross margin
-    let grossMargin = lastNumericFromRow(rows, labelKey, "gross margin");
-
-    return { revenue, netIncome, grossMargin };
   }
-  return { revenue: 0, netIncome: 0, grossMargin: 0 };
+  return { value: last, key: lastKey };
 }
 
-// Build a quotes map from the Market tab: { AAPL: {price, changePct}, ... }
+async function fetchRowsFor(sym) {
+  for (const t of [sym, ...(ALIASES[sym] || [])]) {
+    const rows = await getSheetByTicker(t);
+    if (rows?.length) return rows; // expects tabs literally named $AAPL, $MSFT, ...
+  }
+  return [];
+}
+
 function buildQuotesMap(marketRows) {
   const map = new Map();
-  if (!Array.isArray(marketRows)) return map;
-
-  // Guess common header names
-  const header = marketRows[0] || {};
+  if (!Array.isArray(marketRows) || !marketRows.length) return map;
+  const h = marketRows[0] || {};
   const symKey =
-    ["Symbol", "Ticker", "symbol", "ticker", "Company"].find(
-      (k) => k in header
-    ) || "Symbol";
+    ["Symbol", "Ticker", "Company", "symbol", "ticker"].find((k) => k in h) ||
+    "Symbol";
   const priceKey =
-    ["Price", "price", "Last", "last", "Close", "close"].find(
-      (k) => k in header
-    ) || "Price";
+    ["Price", "Last", "Close", "price", "last", "close"].find((k) => k in h) ||
+    "Price";
   const chgKey =
     ["Change %", "% Change", "change_pct", "chg", "Change"].find(
-      (k) => k in header
+      (k) => k in h
     ) || "Change %";
-
   for (const r of marketRows) {
-    const rawSym = r[symKey];
+    const raw = r[symKey];
     const sym =
-      (rawSym &&
-        String(rawSym)
+      (raw &&
+        String(raw)
           .toUpperCase()
-          .replace(/.*\(([^)]+)\).*/, "$1")) || // "Apple (AAPL)" -> "AAPL"
-      (rawSym && String(rawSym).toUpperCase()) ||
+          .replace(/.*\(([^)]+)\).*/, "$1")) ||
+      (raw && String(raw).toUpperCase()) ||
       "";
     if (!TICKERS.includes(sym)) continue;
-
-    const price = num(r[priceKey] ?? 0);
-    const changePct = pct(r[chgKey] ?? 0);
-    map.set(sym, { price, changePct });
+    map.set(sym, { price: num(r[priceKey]), changePct: pct(r[chgKey]) });
   }
   return map;
 }
 
+function patchCompany(sym, patch) {
+  const i = companies.value.findIndex((c) => c.symbol === sym);
+  if (i !== -1) companies.value[i] = { ...companies.value[i], ...patch };
+}
+
 async function load() {
-  // 1) show 7 cards immediately
+  // 1) render **all 7** placeholders first
   companies.value = TICKERS.map((sym) => ({
     symbol: sym,
     name: meta[sym]?.name || sym,
@@ -220,7 +165,7 @@ async function load() {
     changeAmount: 0,
     revenueLatest: 0,
     revenueLatestDisplay: "—",
-    revenuePeriod: "Latest Q",
+    revenuePeriod: "Latest",
     marketCap: 0,
     marketCapDisplay: "—",
     _netIncome: 0,
@@ -229,39 +174,37 @@ async function load() {
   loading.value = false;
   await nextTick();
 
-  // 2) prices & % change from Market tab (single quick call)
+  // 2) (optional) prices from "Market" tab if you have it
   const market = await getSheetByName("Market").catch(() => []);
   const quotes = buildQuotesMap(market);
-
-  for (let i = 0; i < companies.value.length; i++) {
-    const c = companies.value[i];
-    const q = quotes.get(c.symbol) || { price: 0, changePct: 0 };
-    const changeAmount = (q.price * q.changePct) / 100;
-    companies.value[i] = {
-      ...c,
+  for (const sym of TICKERS) {
+    const q = quotes.get(sym) || { price: 0, changePct: 0 };
+    patchCompany(sym, {
       price: q.price,
       change: q.changePct,
-      changeAmount,
-    };
+      changeAmount: (q.price * q.changePct) / 100,
+    });
   }
 
-  // 3) fundamentals (rev/net/gross) from each $TICKER tab, sequential with tiny delay
-  for (let i = 0; i < TICKERS.length; i++) {
-    const sym = TICKERS[i];
-    const f = await fetchFundamentals(sym);
-    const prev = companies.value[i];
+  // 3) fundamentals per ticker using the exact rows you provided
+  for (const sym of TICKERS) {
+    const rows = await fetchRowsFor(sym);
+    const map = ROWS[sym] || {};
+    const rev = latestFromSheetRow(rows, map.revenue);
+    const net = latestFromSheetRow(rows, map.netIncome);
+    const gm = latestFromSheetRow(rows, map.grossMargin);
 
-    companies.value[i] = {
-      ...prev,
-      revenueLatest: f.revenue,
-      revenueLatestDisplay: f.revenue ? fmtAbbr(f.revenue) : "—",
-      marketCap: f.revenue, // placeholder until you add a real Market Cap source
-      marketCapDisplay: f.revenue ? fmtAbbr(f.revenue) : "—",
-      _netIncome: f.netIncome,
-      _grossMarginPct: f.grossMargin,
-    };
+    patchCompany(sym, {
+      revenueLatest: rev.value,
+      revenueLatestDisplay: rev.value ? fmtAbbr(rev.value) : "—",
+      revenuePeriod: rev.key || "Latest",
+      marketCap: rev.value, // temporary placeholder
+      marketCapDisplay: rev.value ? fmtAbbr(rev.value) : "—",
+      _netIncome: net.value,
+      _grossMarginPct: gm.value,
+    });
 
-    await sleep(150); // be gentle with the API
+    await sleep(150); // be gentle with SheetDB
   }
 }
 
