@@ -51,12 +51,27 @@
         />
       </div>
     </section>
+
+    <section class="charts-section">
+      <ChartComponent
+        title="Revenue Growth Over Time"
+        type="line"
+        :data="revenueGrowthData"
+      />
+
+      <ChartComponent
+        title="Market Share Distribution"
+        type="doughnut"
+        :data="marketShareData"
+      />
+    </section>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, nextTick } from "vue";
 import StockCard from "./StockCard.vue";
+import ChartComponent from "./ChartComponent.vue";
 import { getSheetByTicker } from "@/services/StockService";
 
 const loading = ref(true);
@@ -76,6 +91,75 @@ const ROWS = {
   NVDA: { revenue: 5, netIncome: 29, grossMargin: 11 },
   TSLA: { revenue: 15, netIncome: 44, grossMargin: 26 },
 };
+
+const revenueGrowthData = {
+  labels: [
+    "Q1 2021",
+    "Q2 2021",
+    "Q3 2021",
+    "Q4 2021",
+    "Q1 2022",
+    "Q2 2022",
+    "Q3 2022",
+    "Q4 2022",
+    "Q1 2023",
+    "Q2 2023",
+    "Q3 2023",
+    "Q4 2023",
+  ],
+  datasets: [
+    {
+      label: "Apple",
+      data: [10, 15, 18, 22, 25, 28, 32, 35, 38, 42, 45, 48],
+      borderColor: "#007AFF",
+      backgroundColor: "rgba(0, 122, 255, 0.1)",
+      tension: 0.4,
+      borderWidth: 3,
+      pointBackgroundColor: "#007AFF",
+      pointBorderColor: "#fff",
+      pointBorderWidth: 2,
+      pointRadius: 6,
+    },
+    {
+      label: "Microsoft",
+      data: [8, 12, 16, 20, 24, 27, 30, 33, 36, 39, 42, 45],
+      borderColor: "#00BCF2",
+      backgroundColor: "rgba(0, 188, 242, 0.1)",
+      tension: 0.4,
+      borderWidth: 3,
+      pointBackgroundColor: "#00BCF2",
+      pointBorderColor: "#fff",
+      pointBorderWidth: 2,
+      pointRadius: 6,
+    },
+    {
+      label: "Google",
+      data: [6, 10, 14, 18, 22, 25, 28, 31, 34, 37, 40, 43],
+      borderColor: "#4285F4",
+      backgroundColor: "rgba(66, 133, 244, 0.1)",
+      tension: 0.4,
+      borderWidth: 3,
+      pointBackgroundColor: "#4285F4",
+      pointBorderColor: "#fff",
+      pointBorderWidth: 2,
+      pointRadius: 6,
+    },
+  ],
+};
+
+const marketShareData = {
+  labels: TICKERS,
+  datasets: [
+    {
+      data: [23.5, 15.2, 18.7, 12.4, 8.9, 6.8, 14.5],
+      backgroundColor: "#ffffff",
+      borderWidth: 0,
+      hoverBorderWidth: 3,
+      hoverBorderColor: "#fff",
+    },
+  ],
+};
+
 // growth row (QoQ %) — for now only AAPL per your note
 const ROWS_GROWTH = { AAPL: 11 };
 
@@ -426,9 +510,11 @@ onMounted(() => {
 
 .charts-section {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1.5fr 1fr;
   gap: 30px;
   margin-bottom: 40px;
+  margin-left: 32px;
+  margin-right: 32px;
 }
 
 .metrics-grid {
