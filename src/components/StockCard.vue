@@ -11,28 +11,33 @@
       </div>
       <div class="company-info">
         <h3>{{ company.name }}</h3>
-        <p>{{ company.symbol }}</p>
+        <!-- Here the company name -->
       </div>
     </div>
-    <div class="stock-price">${{ company.price.toFixed(2) }}</div>
-    <div
-      class="price-change"
-      :class="company.change >= 0 ? 'positive' : 'negative'"
-    >
-      <span>{{ company.change >= 0 ? "↗" : "↘" }}</span>
-      <span>{{ Math.abs(company.change).toFixed(2) }}%</span>
-      <span>${{ Math.abs(company.changeAmount).toFixed(2) }}</span>
-    </div>
-    <div class="extras">
-      <div class="extra">
-        <small>Revenue ({{ company.revenuePeriod }})</small>
-        <strong>{{ company.revenueLatestDisplay }}</strong>
+    <p style="font-size: 14px; margin-bottom: 4px">
+      {{ company.revenuePeriod }}
+    </p>
+    <!-- Anzeige aus welchem Quartal die Umsatzwerte stammen z.b. "Revenue Q1 2025" -->
+    <div class="price-container">
+      <div class="stock-price">{{ company.price.toFixed(2) }}</div>
+      <!-- Absolute Zunahme des Umatzes in Mrd. $ z.b. "38.52"-->
+      <div
+        class="price-change"
+        :class="company.change >= 0 ? 'positive' : 'negative'"
+      >
+        <div class="change-container">
+          <div class="change-arrow">
+            <span>{{ Math.abs(company.changeAmount).toFixed(2) }}</span>
+            <!-- Relative Zunahme des Umsatz im Vergleich zum letzten Quartal als Zahl z.b. "+1.06 ↗" or "-5.81 ↘"-->
+            <span>{{ company.changeAmount >= 0 ? "↗" : "↘" }}</span>
+          </div>
+
+          <span>{{ Math.abs(company.change).toFixed(2) }} %</span>
+          <!-- Relative Zunahme des Umsatz in % im Vergleich zum letzten Quartal z.b. "2.83 %" or "-1.32 %"-->
+        </div>
       </div>
-      <div class="extra">
-        <small>Market Cap</small>
-        <strong>{{ company.marketCapDisplay }}</strong>
-      </div>
     </div>
+    <span style="font-size: 12px">In Bill USD</span>
   </div>
 </template>
 
@@ -58,6 +63,7 @@ export default {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
+  cursor: default;
 }
 
 .stock-card::before {
@@ -85,12 +91,12 @@ export default {
 .stock-header {
   display: flex;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .company-icon {
-  width: 40px;
-  height: 40px;
+  width: 20px;
+  height: 20px;
   border-radius: 8px;
   margin-right: 12px;
   display: flex;
@@ -98,26 +104,19 @@ export default {
   justify-content: center;
 
   img {
-    width: 40px;
-    height: 40px;
+    width: 20px;
+    height: 20px;
   }
 }
 
 .company-info h3 {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.company-info p {
-  color: #8892b0;
-  font-size: 14px;
+  font-size: 24px;
+  font-weight: 500;
 }
 
 .stock-price {
   font-size: 32px;
-  font-weight: 700;
-  margin-bottom: 8px;
+  font-weight: 500;
   color: #ffffff;
 }
 
@@ -127,6 +126,22 @@ export default {
   gap: 8px;
   font-size: 14px;
   font-weight: 500;
+}
+
+.change-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.change-arrow {
+  display: flex;
+  gap: 4px;
+}
+
+.price-container {
+  display: flex;
+  gap: 20px;
 }
 
 .positive {

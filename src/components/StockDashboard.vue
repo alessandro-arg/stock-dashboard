@@ -21,56 +21,36 @@
 <script setup>
 import { ref, onMounted, nextTick } from "vue";
 import StockCard from "./StockCard.vue";
-import { getSheetByTicker, getSheetByName } from "@/services/StockService";
+import { getSheetByTicker } from "@/services/StockService";
 
 const loading = ref(true);
 const companies = ref([]);
 
-// --- all 7 tickers + the exact rows (“Zeile”) you gave ---
 const TICKERS = ["AAPL", "MSFT", "GOOG", "AMZN", "META", "NVDA", "TSLA"];
 const ROWS = {
-  AAPL: { revenue: 5, netIncome: 36, grossMargin: 23 },
+  AAPL: { revenue: 9, netIncome: 36, grossMargin: 23 },
   MSFT: { revenue: 9, netIncome: 30, grossMargin: 15 },
   GOOG: { revenue: 5, netIncome: 41, grossMargin: 25 },
-  AMZN: { revenue: 9, netIncome: 41, grossMargin: 15 },
+  AMZN: { revenue: 5, netIncome: 41, grossMargin: 15 },
   META: { revenue: 5, netIncome: 27, grossMargin: 11 },
   NVDA: { revenue: 5, netIncome: 29, grossMargin: 11 },
-  TSLA: { revenue: 13, netIncome: 44, grossMargin: 26 },
+  TSLA: { revenue: 15, netIncome: 44, grossMargin: 26 },
 };
-// try aliases in case some tabs are named differently
+// growth row (QoQ %) — for now only AAPL per your note
+const ROWS_GROWTH = { AAPL: 11 };
+
 const ALIASES = { GOOG: ["GOOGL"], GOOGL: ["GOOG"], META: ["FB"] };
 
 const meta = {
-  AAPL: { name: "Apple", color: "#007AFF", class: "apple", logo: "apple.png" },
-  MSFT: {
-    name: "Microsoft",
-    color: "#00BCF2",
-    class: "microsoft",
-    logo: "microsoft.png",
-  },
-  GOOG: {
-    name: "Alphabet",
-    color: "#4285F4",
-    class: "google",
-    logo: "google.png",
-  },
-  AMZN: {
-    name: "Amazon",
-    color: "#FF9900",
-    class: "amazon",
-    logo: "amazon.png",
-  },
-  META: { name: "Meta", color: "#1877F2", class: "meta", logo: "meta.png" },
-  NVDA: {
-    name: "Nvidia",
-    color: "#76B900",
-    class: "nvidia",
-    logo: "nvidia.png",
-  },
-  TSLA: { name: "Tesla", color: "#CC0000", class: "tesla", logo: "tesla.png" },
+  AAPL: { name: "Apple", class: "apple", logo: "apple.png" },
+  MSFT: { name: "Microsoft", class: "microsoft", logo: "microsoft.png" },
+  GOOG: { name: "Google", class: "google", logo: "google.png" },
+  AMZN: { name: "Amazon", class: "amazon", logo: "amazon.png" },
+  META: { name: "Meta", class: "meta", logo: "meta.png" },
+  NVDA: { name: "Nvidia", class: "nvidia", logo: "nvidia.png" },
+  TSLA: { name: "Tesla", class: "tesla", logo: "tesla.png" },
 };
 
-// ---------- utils ----------
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const num = (v, def = 0) => {
   if (v == null || v === "") return def;
@@ -78,21 +58,40 @@ const num = (v, def = 0) => {
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : def;
 };
-const pct = (v, d = 0) => num(String(v ?? "").replace("%", ""), d);
-const fmtAbbr = (n) => {
-  const a = Math.abs(n);
-  if (a >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
-  if (a >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
-  if (a >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
-  if (a >= 1e3) return `$${(n / 1e3).toFixed(2)}K`;
-  return `$${n.toFixed(2)}`;
-};
 const headerKey = (rows) => Object.keys(rows?.[0] || {})[0] || "";
 
-// take the **right-most numeric** cell from a given sheet row number
-function latestFromSheetRow(rows, sheetRowNumber) {
+// keep billions if already; convert large raw USD to billions
+function toBillions(x) {
+  const ax = Math.abs(x);
+  return ax >= 1e8 ? x / 1e9 : x;
+}
+
+// last TWO numeric cells from a 1-based sheet row
+function lastTwoFromSheetRow(rows, sheetRowNumber) {
+  if (!rows?.length || !sheetRowNumber)
+    return { latest: { value: 0, key: "" }, prev: { value: 0, key: "" } };
+  const idx = Math.max(0, sheetRowNumber - 2); // SheetDB data[0] = sheet row 2
+  const row = rows[idx];
+  if (!row)
+    return { latest: { value: 0, key: "" }, prev: { value: 0, key: "" } };
+
+  const label = headerKey(rows);
+  const ordered = [];
+  for (const [k, v] of Object.entries(row)) {
+    if (k === label) continue;
+    const n = num(v, NaN);
+    if (!Number.isNaN(n)) ordered.push({ key: k, value: n });
+  }
+  const L = ordered.length;
+  const latest = L ? ordered[L - 1] : { key: "", value: 0 };
+  const prev = L > 1 ? ordered[L - 2] : { key: "", value: 0 };
+  return { latest, prev };
+}
+
+// last ONE numeric cell from a 1-based sheet row
+function lastFromSheetRow(rows, sheetRowNumber) {
   if (!rows?.length || !sheetRowNumber) return { value: 0, key: "" };
-  const idx = Math.max(0, sheetRowNumber - 2); // convert “Zeile” -> array index
+  const idx = Math.max(0, sheetRowNumber - 2);
   const row = rows[idx];
   if (!row) return { value: 0, key: "" };
 
@@ -101,8 +100,8 @@ function latestFromSheetRow(rows, sheetRowNumber) {
     lastKey = "";
   for (const [k, v] of Object.entries(row)) {
     if (k === label) continue;
-    const n = num(v);
-    if (Number.isFinite(n)) {
+    const n = num(v, NaN);
+    if (!Number.isNaN(n)) {
       last = n;
       lastKey = k;
     }
@@ -110,41 +109,54 @@ function latestFromSheetRow(rows, sheetRowNumber) {
   return { value: last, key: lastKey };
 }
 
+// "31 jul 25" / "2025-07-31" / "Q1 2025" → "Q# YYYY"
+function toQuarterLabel(key) {
+  const s = String(key || "").trim();
+  if (!s) return "Latest";
+  let m =
+    s.match(/(\d{4})\D*Q\D*([1-4])/i) || s.match(/Q\D*([1-4])\D*(\d{4})/i);
+  if (m) {
+    const year = m[1]?.length === 4 ? m[1] : m[2];
+    const q = m[2] && m[1]?.length === 4 ? m[2] : m[1];
+    return `Q${q} ${year}`;
+  }
+  const MONTHS = {
+    jan: 0,
+    feb: 1,
+    mar: 2,
+    apr: 3,
+    may: 4,
+    jun: 5,
+    jul: 6,
+    aug: 7,
+    sep: 8,
+    sept: 8,
+    oct: 9,
+    nov: 10,
+    dec: 11,
+  };
+  m =
+    s.match(/(\d{1,2})[.\-/\s]*([A-Za-z]{3,})[.\-/\s]*(\d{2,4})/) ||
+    s.match(/([A-Za-z]{3,})[.\-/\s]*(\d{1,2})[.\-/\s]*(\d{2,4})/);
+  if (m) {
+    const mon = MONTHS[m[2]?.toLowerCase()] ?? MONTHS[m[1]?.toLowerCase()];
+    const yy = m[3] ?? m[2];
+    if (mon != null) {
+      let year = parseInt(yy, 10);
+      if (year < 100) year += 2000;
+      const q = Math.floor(mon / 3) + 1;
+      return `Q${q} ${year}`;
+    }
+  }
+  return s;
+}
+
 async function fetchRowsFor(sym) {
   for (const t of [sym, ...(ALIASES[sym] || [])]) {
     const rows = await getSheetByTicker(t);
-    if (rows?.length) return rows; // expects tabs literally named $AAPL, $MSFT, ...
+    if (rows?.length) return rows;
   }
   return [];
-}
-
-function buildQuotesMap(marketRows) {
-  const map = new Map();
-  if (!Array.isArray(marketRows) || !marketRows.length) return map;
-  const h = marketRows[0] || {};
-  const symKey =
-    ["Symbol", "Ticker", "Company", "symbol", "ticker"].find((k) => k in h) ||
-    "Symbol";
-  const priceKey =
-    ["Price", "Last", "Close", "price", "last", "close"].find((k) => k in h) ||
-    "Price";
-  const chgKey =
-    ["Change %", "% Change", "change_pct", "chg", "Change"].find(
-      (k) => k in h
-    ) || "Change %";
-  for (const r of marketRows) {
-    const raw = r[symKey];
-    const sym =
-      (raw &&
-        String(raw)
-          .toUpperCase()
-          .replace(/.*\(([^)]+)\).*/, "$1")) ||
-      (raw && String(raw).toUpperCase()) ||
-      "";
-    if (!TICKERS.includes(sym)) continue;
-    map.set(sym, { price: num(r[priceKey]), changePct: pct(r[chgKey]) });
-  }
-  return map;
 }
 
 function patchCompany(sym, patch) {
@@ -153,58 +165,56 @@ function patchCompany(sym, patch) {
 }
 
 async function load() {
-  // 1) render **all 7** placeholders first
+  // placeholders
   companies.value = TICKERS.map((sym) => ({
     symbol: sym,
     name: meta[sym]?.name || sym,
     logo: meta[sym]?.logo,
     class: meta[sym]?.class,
-    color: meta[sym]?.color,
-    price: 0,
-    change: 0,
-    changeAmount: 0,
-    revenueLatest: 0,
-    revenueLatestDisplay: "—",
-    revenuePeriod: "Latest",
-    marketCap: 0,
-    marketCapDisplay: "—",
-    _netIncome: 0,
-    _grossMarginPct: 0,
+    revenuePeriod: "Revenue —",
+    price: 0, // latest revenue (B USD)
+    changeAmount: 0, // absolute QoQ change (B USD, signed)
+    change: 0, // QoQ % (signed)
   }));
   loading.value = false;
   await nextTick();
 
-  // 2) (optional) prices from "Market" tab if you have it
-  const market = await getSheetByName("Market").catch(() => []);
-  const quotes = buildQuotesMap(market);
-  for (const sym of TICKERS) {
-    const q = quotes.get(sym) || { price: 0, changePct: 0 };
-    patchCompany(sym, {
-      price: q.price,
-      change: q.changePct,
-      changeAmount: (q.price * q.changePct) / 100,
-    });
-  }
-
-  // 3) fundamentals per ticker using the exact rows you provided
+  // compute for each ticker
   for (const sym of TICKERS) {
     const rows = await fetchRowsFor(sym);
-    const map = ROWS[sym] || {};
-    const rev = latestFromSheetRow(rows, map.revenue);
-    const net = latestFromSheetRow(rows, map.netIncome);
-    const gm = latestFromSheetRow(rows, map.grossMargin);
+    const revRow = ROWS[sym]?.revenue;
+    if (!rows.length || !revRow) {
+      await sleep(80);
+      continue;
+    }
+
+    // row 9: total revenue (latest & previous)
+    const { latest, prev } = lastTwoFromSheetRow(rows, revRow);
+    const latestB = toBillions(num(latest.value));
+    const prevB = toBillions(num(prev.value));
+
+    // percent from row 9 (always compute from the two revenue cells)
+    const pctFromRow9 = prevB !== 0 ? ((latestB - prevB) / prevB) * 100 : 0;
+
+    // row 10: growth % (use only where defined; for now AAPL)
+    let changeAmountB = latestB - prevB; // fallback
+    const growthRow = ROWS_GROWTH[sym];
+    if (growthRow) {
+      const growth = lastFromSheetRow(rows, growthRow); // e.g., "2,83%" -> 2.83
+      const growthPct = num(growth.value, NaN);
+      if (Number.isFinite(growthPct) && prevB !== 0) {
+        changeAmountB = prevB * (growthPct / 100);
+      }
+    }
 
     patchCompany(sym, {
-      revenueLatest: rev.value,
-      revenueLatestDisplay: rev.value ? fmtAbbr(rev.value) : "—",
-      revenuePeriod: rev.key || "Latest",
-      marketCap: rev.value, // temporary placeholder
-      marketCapDisplay: rev.value ? fmtAbbr(rev.value) : "—",
-      _netIncome: net.value,
-      _grossMarginPct: gm.value,
+      revenuePeriod: `Revenue ${toQuarterLabel(latest.key)}`,
+      price: latestB,
+      changeAmount: changeAmountB, // shown next to arrow
+      change: pctFromRow9, // % shown on the right
     });
 
-    await sleep(150); // be gentle with SheetDB
+    await sleep(100);
   }
 }
 
@@ -214,7 +224,7 @@ onMounted(load);
 <style scoped>
 .dashboard {
   padding: 20px;
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
   animation: fadeIn 0.8s ease-out;
 }
@@ -252,7 +262,7 @@ onMounted(load);
 
 .stock-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 20px;
   margin-bottom: 40px;
 }
