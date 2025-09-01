@@ -45,22 +45,46 @@ export default {
   methods: {
     renderChart() {
       const ctx = this.$refs.canvas.getContext("2d");
+      const yTickValues = [0, 30, 60, 90, 120, 150];
+
+      const fixedYTicksPlugin = {
+        id: "fixedYTicks",
+        afterBuildTicks(chart, args) {
+          const scale = args.scale;
+          if (scale?.axis === "y") {
+            scale.ticks = yTickValues.map((v) => ({ value: v }));
+          }
+        },
+      };
+
+      const legendWhiteBorder = {
+        id: "legendWhiteBorder",
+        afterUpdate(chart) {
+          const items = chart.legend?.legendItems || [];
+          items.forEach((it) => {
+            it.pointStyle = "rect";
+            it.strokeStyle = "#fff";
+            it.lineWidth = 2;
+          });
+        },
+      };
 
       if (this.type === "line") {
         this.chart = new Chart(ctx, {
           type: "line",
           data: this.data,
+          plugins: [fixedYTicksPlugin, legendWhiteBorder],
           options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
               legend: {
                 display: true,
-                position: "bottom",
+                position: "right",
                 labels: {
-                  color: "#8892b0",
-                  usePointStyle: true,
-                  padding: 20,
+                  color: "#FFFFFF",
+                  usePointStyle: false,
+                  padding: 15,
                   font: {
                     size: 12,
                   },
@@ -71,16 +95,29 @@ export default {
               x: {
                 grid: { color: "rgba(255, 255, 255, 0.1)" },
                 ticks: {
-                  color: "#8892b0",
+                  color: "#FFFFFF",
                   font: { size: 11 },
+                  minRotation: 20,
+                  maxRotation: 20,
                 },
               },
               y: {
+                min: 0,
+                max: 150,
                 grid: { color: "rgba(255, 255, 255, 0.1)" },
                 ticks: {
-                  color: "#8892b0",
+                  autoSkip: false,
+                  callback: (val) => (yTickValues.includes(val) ? val : ""),
+                  color: "#FFFFFF",
                   font: { size: 11 },
+                  padding: 15,
                 },
+              },
+            },
+            elements: {
+              point: {
+                radius: 0,
+                hoverRadius: 0,
               },
             },
             interaction: {
@@ -100,7 +137,7 @@ export default {
             plugins: {
               legend: {
                 display: true,
-                position: "bottom",
+                position: "right",
                 labels: {
                   color: "#8892b0",
                   usePointStyle: true,

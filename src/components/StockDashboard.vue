@@ -54,13 +54,13 @@
 
     <section class="charts-section">
       <ChartComponent
-        title="Revenue Growth Over Time"
+        title="Revenue last 3 years"
         type="line"
         :data="revenueGrowthData"
       />
 
       <ChartComponent
-        title="Market Share Distribution"
+        title="Revenue Breakdown Magnificent Seven"
         type="doughnut"
         :data="marketShareData"
       />
@@ -94,55 +94,75 @@ const ROWS = {
 
 const revenueGrowthData = {
   labels: [
-    "Q1 2021",
-    "Q2 2021",
-    "Q3 2021",
-    "Q4 2021",
-    "Q1 2022",
-    "Q2 2022",
-    "Q3 2022",
     "Q4 2022",
     "Q1 2023",
     "Q2 2023",
     "Q3 2023",
     "Q4 2023",
+    "Q1 2024",
+    "Q2 2024",
+    "Q3 2024",
+    "Q4 2024",
+    "Q1 2025",
+    "Q2 2025",
+    "Q3 2025",
   ],
   datasets: [
     {
       label: "Apple",
-      data: [10, 15, 18, 22, 25, 28, 32, 35, 38, 42, 45, 48],
+      data: [50, 15, 18, 22, 25, 28, 32, 35, 38, 42, 45, 48],
       borderColor: "#007AFF",
-      backgroundColor: "rgba(0, 122, 255, 0.1)",
-      tension: 0.4,
+      backgroundColor: "#007AFF",
+      tension: 1.7,
       borderWidth: 3,
-      pointBackgroundColor: "#007AFF",
-      pointBorderColor: "#fff",
-      pointBorderWidth: 2,
-      pointRadius: 6,
     },
     {
       label: "Microsoft",
-      data: [8, 12, 16, 20, 24, 27, 30, 33, 36, 39, 42, 45],
+      data: [30, 12, 16, 20, 24, 27, 30, 33, 36, 39, 42, 45],
       borderColor: "#00BCF2",
-      backgroundColor: "rgba(0, 188, 242, 0.1)",
-      tension: 0.4,
+      backgroundColor: "#00BCF2",
+      tension: 1.7,
       borderWidth: 3,
-      pointBackgroundColor: "#00BCF2",
-      pointBorderColor: "#fff",
-      pointBorderWidth: 2,
-      pointRadius: 6,
     },
     {
       label: "Google",
-      data: [6, 10, 14, 18, 22, 25, 28, 31, 34, 37, 40, 43],
+      data: [15, 10, 14, 18, 22, 25, 28, 31, 34, 37, 40, 43],
       borderColor: "#4285F4",
-      backgroundColor: "rgba(66, 133, 244, 0.1)",
-      tension: 0.4,
+      backgroundColor: "#4285F4",
+      tension: 1.7,
       borderWidth: 3,
-      pointBackgroundColor: "#4285F4",
-      pointBorderColor: "#fff",
-      pointBorderWidth: 2,
-      pointRadius: 6,
+    },
+    {
+      label: "Amazon",
+      data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
+      borderColor: "#ff9900",
+      backgroundColor: "#ff9900",
+      tension: 1.7,
+      borderWidth: 3,
+    },
+    {
+      label: "Meta",
+      data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
+      borderColor: "#1877f2",
+      backgroundColor: "#1877f2",
+      tension: 1.7,
+      borderWidth: 3,
+    },
+    {
+      label: "Nvidia",
+      data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
+      borderColor: "#76b900",
+      backgroundColor: "#76b900",
+      tension: 1.7,
+      borderWidth: 3,
+    },
+    {
+      label: "Tesla",
+      data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
+      borderColor: "#cc0000",
+      backgroundColor: "#cc0000",
+      tension: 1.7,
+      borderWidth: 3,
     },
   ],
 };
@@ -344,7 +364,7 @@ async function load() {
     name: meta[sym]?.name || sym,
     logo: meta[sym]?.logo,
     class: meta[sym]?.class,
-    revenuePeriod: "Revenue —",
+    revenuePeriod: "Revenue Q 20",
     price: 0, // latest revenue (B USD)
     changeAmount: 0, // absolute QoQ change (B USD, signed)
     change: 0, // QoQ % (signed)
