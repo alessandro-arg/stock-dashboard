@@ -8,12 +8,48 @@
       <p>Real-time stock performance and financial metrics</p>
     </header>
 
-    <section class="stock-cards">
-      <StockCard
-        v-for="company in companies"
-        :key="company.symbol"
-        :company="company"
-      />
+    <section class="stock-cards-container">
+      <button
+        v-show="showLeftArrow"
+        @click="scrollLeft"
+        class="scroll-arrow scroll-arrow-left"
+        aria-label="Scroll left"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M15 18L9 12L15 6"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+
+      <button
+        v-show="showRightArrow"
+        @click="scrollRight"
+        class="scroll-arrow scroll-arrow-right"
+        aria-label="Scroll right"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M9 18L15 12L9 6"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+
+      <div class="stock-cards" ref="stockCards" @scroll="handleScroll">
+        <StockCard
+          v-for="company in companies"
+          :key="company.symbol"
+          :company="company"
+        />
+      </div>
     </section>
   </div>
 </template>
@@ -25,6 +61,10 @@ import { getSheetByTicker } from "@/services/StockService";
 
 const loading = ref(true);
 const companies = ref([]);
+
+const stockCards = ref(null);
+const showLeftArrow = ref(false);
+const showRightArrow = ref(false);
 
 const TICKERS = ["AAPL", "MSFT", "GOOG", "AMZN", "META", "NVDA", "TSLA"];
 const ROWS = {
@@ -49,6 +89,55 @@ const meta = {
   META: { name: "Meta", class: "meta", logo: "meta.png" },
   NVDA: { name: "Nvidia", class: "nvidia", logo: "nvidia.png" },
   TSLA: { name: "Tesla", class: "tesla", logo: "tesla.png" },
+};
+
+const handleScroll = () => {
+  if (!stockCards.value) return;
+
+  const container = stockCards.value;
+  const scrollLeft = container.scrollLeft;
+  const scrollWidth = container.scrollWidth;
+  const clientWidth = container.clientWidth;
+
+  // Show left arrow if not at the beginning
+  showLeftArrow.value = scrollLeft > 0;
+
+  // Show right arrow if not at the end (with small tolerance for rounding)
+  showRightArrow.value = scrollLeft < scrollWidth - clientWidth - 1;
+};
+
+const scrollLeft = () => {
+  if (!stockCards.value) return;
+
+  const container = stockCards.value;
+  const cardWidth = container.children[0]?.offsetWidth || 300;
+  const gap = 20; // Match the gap from CSS
+  const scrollAmount = cardWidth + gap;
+
+  container.scrollBy({
+    left: -scrollAmount,
+    behavior: "smooth",
+  });
+};
+
+const scrollRight = () => {
+  if (!stockCards.value) return;
+
+  const container = stockCards.value;
+  const cardWidth = container.children[0]?.offsetWidth || 300;
+  const gap = 20; // Match the gap from CSS
+  const scrollAmount = cardWidth + gap;
+
+  container.scrollBy({
+    left: scrollAmount,
+    behavior: "smooth",
+  });
+};
+
+const checkArrows = () => {
+  nextTick(() => {
+    handleScroll();
+  });
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -178,6 +267,7 @@ async function load() {
   }));
   loading.value = false;
   await nextTick();
+  setTimeout(checkArrows, 50);
 
   // compute for each ticker
   for (const sym of TICKERS) {
@@ -216,14 +306,18 @@ async function load() {
 
     await sleep(100);
   }
+  checkArrows();
 }
 
-onMounted(load);
+onMounted(() => {
+  load();
+  window.addEventListener("resize", checkArrows);
+});
 </script>
 
 <style scoped>
 .dashboard {
-  padding: 20px;
+  padding: 20px 0;
   max-width: 1600px;
   margin: 0 auto;
   animation: fadeIn 0.8s ease-out;
@@ -260,11 +354,74 @@ onMounted(load);
   font-size: 16px;
 }
 
-.stock-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
+.stock-cards-container {
+  height: 200px;
   margin-bottom: 40px;
+  position: relative;
+  align-items: center;
+  margin-left: 20px;
+  margin-right: 20px;
+}
+
+.scroll-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  color: #ffffff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.scroll-arrow:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 0 6px 25px rgba(0, 0, 0, 0.4);
+}
+
+.scroll-arrow:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+.scroll-arrow-left {
+  left: -10px; /* 48px button + 6px spacing */
+}
+
+.scroll-arrow-right {
+  right: -10px; /* 48px button + 6px spacing */
+}
+
+.stock-cards {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  padding: 10px 12px;
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.stock-cards::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+
+.stock-cards > * {
+  flex: 0 0 auto;
+  min-width: 280px; /* Minimum card width */
+  max-width: 320px; /* Maximum card width */
 }
 
 .charts-section {
@@ -309,8 +466,25 @@ onMounted(load);
   }
 
   .stock-cards {
-    grid-template-columns: 1fr;
     gap: 16px;
+  }
+
+  .stock-cards > * {
+    min-width: 240px;
+    max-width: 280px;
+  }
+
+  .scroll-arrow {
+    width: 40px;
+    height: 40px;
+  }
+
+  .scroll-arrow-left {
+    left: -20px;
+  }
+
+  .scroll-arrow-right {
+    right: -20px;
   }
 
   .charts-section {
@@ -323,13 +497,61 @@ onMounted(load);
   }
 }
 
-@media (max-width: 320px) {
+@media (max-width: 480px) {
   .dashboard {
     padding: 12px;
   }
 
   .header h1 {
     font-size: 24px;
+  }
+
+  .stock-cards {
+    gap: 12px;
+  }
+
+  .stock-cards > * {
+    min-width: 200px;
+    max-width: 240px;
+  }
+
+  .scroll-arrow {
+    width: 36px;
+    height: 36px;
+  }
+
+  .scroll-arrow-left {
+    left: -18px;
+  }
+
+  .scroll-arrow-right {
+    right: -18px;
+  }
+}
+
+/* Very small screens */
+@media (max-width: 320px) {
+  .stock-cards > * {
+    min-width: 180px;
+    max-width: 200px;
+  }
+
+  .scroll-arrow {
+    width: 32px;
+    height: 32px;
+  }
+
+  .scroll-arrow svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .scroll-arrow-left {
+    left: -16px;
+  }
+
+  .scroll-arrow-right {
+    right: -16px;
   }
 }
 </style>
