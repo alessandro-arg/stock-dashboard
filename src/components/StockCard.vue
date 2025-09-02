@@ -17,23 +17,21 @@
     <p style="font-size: 14px; margin-bottom: 4px">
       {{ company.revenuePeriod }}
     </p>
-    <!-- Anzeige aus welchem Quartal die Umsatzwerte stammen z.b. "Revenue Q1 2025" -->
     <div class="price-container">
       <div class="stock-price">{{ company.price.toFixed(2) }}</div>
-      <!-- Absolute Zunahme des Umatzes in Mrd. $ z.b. "38.52"-->
       <div
         class="price-change"
         :class="company.change >= 0 ? 'positive' : 'negative'"
       >
         <div class="change-container">
           <div class="change-arrow">
-            <span>{{ Math.abs(company.changeAmount).toFixed(2) }}</span>
-            <!-- Relative Zunahme des Umsatz im Vergleich zum letzten Quartal als Zahl z.b. "+1.06 ↗" or "-5.81 ↘"-->
+            <span
+              >{{ company.changeAmount >= 0 ? "+" : "-"
+              }}{{ Math.abs(company.changeAmount).toFixed(2) }}</span
+            >
             <span>{{ company.changeAmount >= 0 ? "↗" : "↘" }}</span>
           </div>
-
           <span>{{ Math.abs(company.change).toFixed(2) }} %</span>
-          <!-- Relative Zunahme des Umsatz in % im Vergleich zum letzten Quartal z.b. "2.83 %" or "-1.32 %"-->
         </div>
       </div>
     </div>

@@ -9,7 +9,6 @@
 
 <script>
 import { Chart, registerables } from "chart.js";
-
 Chart.register(...registerables);
 
 export default {
@@ -44,7 +43,9 @@ export default {
   },
   methods: {
     renderChart() {
+      if (!this.$refs.canvas || !this.data) return;
       const ctx = this.$refs.canvas.getContext("2d");
+
       const yTickValues = [0, 30, 60, 90, 120, 150];
 
       const fixedYTicksPlugin = {
@@ -90,6 +91,16 @@ export default {
                   },
                 },
               },
+              tooltip: {
+                callbacks: {
+                  label(ctx) {
+                    const v = ctx.parsed.y;
+                    return `${ctx.dataset.label}: ${
+                      v == null ? "—" : `${v.toLocaleString()} B`
+                    }`;
+                  },
+                },
+              },
             },
             scales: {
               x: {
@@ -107,7 +118,8 @@ export default {
                 grid: { color: "rgba(255, 255, 255, 0.1)" },
                 ticks: {
                   autoSkip: false,
-                  callback: (val) => (yTickValues.includes(val) ? val : ""),
+                  callback: (val) =>
+                    yTickValues.includes(val) ? `${val}` : "",
                   color: "#FFFFFF",
                   font: { size: 11 },
                   padding: 15,

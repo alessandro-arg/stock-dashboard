@@ -92,80 +92,110 @@ const ROWS = {
   TSLA: { revenue: 15, netIncome: 44, grossMargin: 26 },
 };
 
-const revenueGrowthData = {
-  labels: [
-    "Q4 2022",
-    "Q1 2023",
-    "Q2 2023",
-    "Q3 2023",
-    "Q4 2023",
-    "Q1 2024",
-    "Q2 2024",
-    "Q3 2024",
-    "Q4 2024",
-    "Q1 2025",
-    "Q2 2025",
-    "Q3 2025",
-  ],
-  datasets: [
-    {
-      label: "Apple",
-      data: [50, 15, 18, 22, 25, 28, 32, 35, 38, 42, 45, 48],
-      borderColor: "#007AFF",
-      backgroundColor: "#007AFF",
-      tension: 1.7,
-      borderWidth: 3,
-    },
-    {
-      label: "Microsoft",
-      data: [30, 12, 16, 20, 24, 27, 30, 33, 36, 39, 42, 45],
-      borderColor: "#00BCF2",
-      backgroundColor: "#00BCF2",
-      tension: 1.7,
-      borderWidth: 3,
-    },
-    {
-      label: "Google",
-      data: [15, 10, 14, 18, 22, 25, 28, 31, 34, 37, 40, 43],
-      borderColor: "#4285F4",
-      backgroundColor: "#4285F4",
-      tension: 1.7,
-      borderWidth: 3,
-    },
-    {
-      label: "Amazon",
-      data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
-      borderColor: "#ff9900",
-      backgroundColor: "#ff9900",
-      tension: 1.7,
-      borderWidth: 3,
-    },
-    {
-      label: "Meta",
-      data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
-      borderColor: "#1877f2",
-      backgroundColor: "#1877f2",
-      tension: 1.7,
-      borderWidth: 3,
-    },
-    {
-      label: "Nvidia",
-      data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
-      borderColor: "#76b900",
-      backgroundColor: "#76b900",
-      tension: 1.7,
-      borderWidth: 3,
-    },
-    {
-      label: "Tesla",
-      data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
-      borderColor: "#cc0000",
-      backgroundColor: "#cc0000",
-      tension: 1.7,
-      borderWidth: 3,
-    },
-  ],
+const QUARTER_LABELS = [
+  "Q4 2022",
+  "Q1 2023",
+  "Q2 2023",
+  "Q3 2023",
+  "Q4 2023",
+  "Q1 2024",
+  "Q2 2024",
+  "Q3 2024",
+  "Q4 2024",
+  "Q1 2025",
+  "Q2 2025",
+  "Q3 2025",
+];
+
+const BRAND = {
+  AAPL: { label: "Apple", color: "#007AFF" },
+  MSFT: { label: "Microsoft", color: "#00BCF2" },
+  GOOG: { label: "Google", color: "#4285F4" },
+  AMZN: { label: "Amazon", color: "#ff9900" },
+  META: { label: "Meta", color: "#1877f2" },
+  NVDA: { label: "Nvidia", color: "#76b900" },
+  TSLA: { label: "Tesla", color: "#cc0000" },
 };
+
+const revenueGrowthData = ref({
+  labels: QUARTER_LABELS,
+  datasets: [],
+});
+
+// const revenueGrowthData = {
+//   labels: [
+//     "Q4 2022",
+//     "Q1 2023",
+//     "Q2 2023",
+//     "Q3 2023",
+//     "Q4 2023",
+//     "Q1 2024",
+//     "Q2 2024",
+//     "Q3 2024",
+//     "Q4 2024",
+//     "Q1 2025",
+//     "Q2 2025",
+//     "Q3 2025",
+//   ],
+//   datasets: [
+//     {
+//       label: "Apple",
+//       data: [50, 15, 18, 22, 25, 28, 32, 35, 38, 42, 45, 48],
+//       borderColor: "#007AFF",
+//       backgroundColor: "#007AFF",
+//       tension: 1.7,
+//       borderWidth: 3,
+//     },
+//     {
+//       label: "Microsoft",
+//       data: [30, 12, 16, 20, 24, 27, 30, 33, 36, 39, 42, 45],
+//       borderColor: "#00BCF2",
+//       backgroundColor: "#00BCF2",
+//       tension: 1.7,
+//       borderWidth: 3,
+//     },
+//     {
+//       label: "Google",
+//       data: [15, 10, 14, 18, 22, 25, 28, 31, 34, 37, 40, 43],
+//       borderColor: "#4285F4",
+//       backgroundColor: "#4285F4",
+//       tension: 1.7,
+//       borderWidth: 3,
+//     },
+//     {
+//       label: "Amazon",
+//       data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
+//       borderColor: "#ff9900",
+//       backgroundColor: "#ff9900",
+//       tension: 1.7,
+//       borderWidth: 3,
+//     },
+//     {
+//       label: "Meta",
+//       data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
+//       borderColor: "#1877f2",
+//       backgroundColor: "#1877f2",
+//       tension: 1.7,
+//       borderWidth: 3,
+//     },
+//     {
+//       label: "Nvidia",
+//       data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
+//       borderColor: "#76b900",
+//       backgroundColor: "#76b900",
+//       tension: 1.7,
+//       borderWidth: 3,
+//     },
+//     {
+//       label: "Tesla",
+//       data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
+//       borderColor: "#cc0000",
+//       backgroundColor: "#cc0000",
+//       tension: 1.7,
+//       borderWidth: 3,
+//     },
+//   ],
+// };
 
 const marketShareData = {
   labels: TICKERS,
@@ -243,6 +273,75 @@ const checkArrows = () => {
     handleScroll();
   });
 };
+
+const toNumber = (v) => {
+  if (v == null) return null;
+  // Strip currency symbols, commas, spaces. Accept both dots and commas for decimals.
+  const cleaned = String(v)
+    .replace(/[^0-9.,-]/g, "")
+    .replace(/,/g, "");
+  const n = parseFloat(cleaned);
+  return Number.isFinite(n) ? n : null;
+};
+
+function extractRevenueSeries(rows, sheetRowNumber, labels) {
+  if (!Array.isArray(rows) || rows.length === 0) return labels.map(() => null);
+
+  // IMPORTANT: align with your other helpers (data[0] == sheet row 2)
+  const idx = Math.max(0, sheetRowNumber - 2);
+  const row = rows[idx];
+  if (!row) return labels.map(() => null);
+
+  // First header key (label/metric column) so we can skip it
+  const firstKey = Object.keys(row)[0] || "";
+
+  // Build normalized quarter map
+  const byQuarter = {};
+  for (const [k, v] of Object.entries(row)) {
+    if (k === firstKey) continue; // skip metric name column
+    const qLabel = toQuarterLabel(k); // "Q# YYYY"
+    const n = toNumber(v);
+    if (qLabel && Number.isFinite(n)) {
+      byQuarter[qLabel] = n;
+    }
+  }
+
+  // Fill in the requested label range in order
+  return labels.map((lbl) => {
+    const n = byQuarter[lbl];
+    return Number.isFinite(n) ? n : null;
+  });
+}
+
+async function loadRevenue() {
+  // Fetch all sheets in parallel
+  const results = await Promise.all(
+    TICKERS.map(async (tkr) => {
+      const rows = await getSheetByTicker(tkr);
+      const series = extractRevenueSeries(
+        rows,
+        ROWS[tkr].revenue,
+        QUARTER_LABELS
+      );
+      return { tkr, series };
+    })
+  );
+
+  // Build datasets for Chart.js
+  const datasets = results.map(({ tkr, series }) => ({
+    label: BRAND[tkr].label,
+    data: series,
+    borderColor: BRAND[tkr].color,
+    backgroundColor: BRAND[tkr].color,
+    tension: 0.35,
+    borderWidth: 3,
+  }));
+
+  revenueGrowthData.value = {
+    labels: QUARTER_LABELS,
+    datasets,
+  };
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const num = (v, def = 0) => {
@@ -415,6 +514,7 @@ async function load() {
 
 onMounted(() => {
   load();
+  loadRevenue();
   window.addEventListener("resize", checkArrows);
 });
 </script>
