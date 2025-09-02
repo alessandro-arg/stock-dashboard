@@ -152,7 +152,7 @@ export default {
                 position: "right",
                 labels: {
                   color: "#8892b0",
-                  usePointStyle: true,
+                  usePointStyle: false,
                   padding: 20,
                   font: {
                     size: 12,

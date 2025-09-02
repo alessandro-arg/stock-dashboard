@@ -276,58 +276,187 @@ const checkArrows = () => {
 
 const toNumber = (v) => {
   if (v == null) return null;
-  // Strip currency symbols, commas, spaces. Accept both dots and commas for decimals.
-  const cleaned = String(v)
-    .replace(/[^0-9.,-]/g, "")
-    .replace(/,/g, "");
-  const n = parseFloat(cleaned);
-  return Number.isFinite(n) ? n : null;
+  let s = String(v).trim();
+
+  // Handle negatives in parentheses: "(1,234.56)" -> "-1,234.56"
+  let negative = false;
+  if (/^\(.*\)$/.test(s)) {
+    negative = true;
+    s = s.slice(1, -1);
+  }
+
+  // Normalize special spaces often used as thousands separators
+  s = s.replace(/[\u00A0\u202F]/g, ""); // NBSP, thin space
+
+  // Remove currency letters/symbols, keep digits . , and -
+  s = s.replace(/[^\d.,-]/g, "");
+
+  const hasComma = s.includes(",");
+  const hasDot = s.includes(".");
+
+  if (hasComma && hasDot) {
+    const lastComma = s.lastIndexOf(",");
+    const lastDot = s.lastIndexOf(".");
+    // If comma appears after dot -> comma is decimal, remove dots
+    s =
+      lastComma > lastDot
+        ? s.replace(/\./g, "").replace(",", ".")
+        : s.replace(/,/g, "");
+  } else if (hasComma) {
+    // Only comma present -> decimal comma
+    s = s.replace(/,/g, ".");
+  }
+
+  let n = parseFloat(s);
+  if (!Number.isFinite(n)) return null;
+  if (negative) n = -n;
+  return n;
 };
 
-function extractRevenueSeries(rows, sheetRowNumber, labels) {
-  if (!Array.isArray(rows) || rows.length === 0) return labels.map(() => null);
+function detectLabelKey(row) {
+  const keys = Object.keys(row);
+  for (const k of keys) {
+    const v = row[k];
+    if (v == null) continue;
+    const nv = toNumber(v);
+    if (nv == null && String(v).trim() !== "") return k;
+  }
+  // fallback: if nothing matched, try common names or just the first key
+  const guess = keys.find((k) => /metric|label|name/i.test(k)) || keys[0];
+  return guess;
+}
 
-  // IMPORTANT: align with your other helpers (data[0] == sheet row 2)
-  const idx = Math.max(0, sheetRowNumber - 2);
-  const row = rows[idx];
-  if (!row) return labels.map(() => null);
+// Quarter/date sort key. Adds support for pure years like "2016" → Q4 of that year.
+function quarterSortKey(header) {
+  if (!header) return NaN;
+  const s0 = String(header)
+    .trim()
+    .replace(/\u2019/g, "'"); // curly → straight
+  const s = s0.replace(/\s+/g, " ");
 
-  // First header key (label/metric column) so we can skip it
-  const firstKey = Object.keys(row)[0] || "";
+  // Pure year: "2016" or "2016'"
+  let m = s.match(/^'?(\d{4})'?$/);
+  if (m) {
+    const y = parseInt(m[1], 10);
+    return y * 4 + 3; // treat as Q4 of that year
+  }
 
-  // Build normalized quarter map
-  const byQuarter = {};
-  for (const [k, v] of Object.entries(row)) {
-    if (k === firstKey) continue; // skip metric name column
-    const qLabel = toQuarterLabel(k); // "Q# YYYY"
-    const n = toNumber(v);
-    if (qLabel && Number.isFinite(n)) {
-      byQuarter[qLabel] = n;
+  // Q-first: Q2 2024, Q2'24, Quarter 2 2024, Q2-FY2024
+  m = s.match(
+    /^(?:QTR|QUARTER|Q)\D*([1-4])\D*(?:FY|FQ)?\D*('?)(\d{2}|\d{4})\1?$/i
+  );
+  if (m) {
+    let y = parseInt(m[3], 10);
+    if (y < 100) y += 2000;
+    const q = parseInt(m[1], 10);
+    return y * 4 + (q - 1);
+  }
+
+  // Year-first: 2024 Q2, 2024-Q2, 2024Q2
+  m = s.match(/^(\d{4})\D*Q\D*([1-4])$/i) || s.match(/^(\d{4})Q([1-4])$/i);
+  if (m) return parseInt(m[1], 10) * 4 + (parseInt(m[2], 10) - 1);
+
+  // FY-first: FY2024 Q2, FY24 Q2
+  m = s.match(
+    /^(?:FY|FQ)\D*('?)(\d{2}|\d{4})\1?\D*(?:QTR|QUARTER|Q)\D*([1-4])$/i
+  );
+  if (m) {
+    let y = parseInt(m[2], 10);
+    if (y < 100) y += 2000;
+    return y * 4 + (parseInt(m[3], 10) - 1);
+  }
+
+  // ISO-like: 2024-06-30 or 2024/06/30
+  m = s.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+  if (m) {
+    const y = parseInt(m[1], 10),
+      mon = parseInt(m[2], 10) - 1;
+    return y * 4 + Math.floor(mon / 3);
+  }
+
+  // D/M/Y or M/D/Y
+  m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+  if (m) {
+    let y = parseInt(m[3], 10);
+    if (y < 100) y += 2000;
+    const mon = parseInt(m[2], 10) - 1;
+    return y * 4 + Math.floor(mon / 3);
+  }
+
+  // Month name: "Jul 2024", "31 Jul 2024"
+  const MONTHS = {
+    jan: 0,
+    feb: 1,
+    mar: 2,
+    apr: 3,
+    may: 4,
+    jun: 5,
+    jul: 6,
+    aug: 7,
+    sep: 8,
+    sept: 8,
+    oct: 9,
+    nov: 10,
+    dec: 11,
+  };
+  m =
+    s.match(/^([A-Za-z]{3,})\s+(\d{2,4})$/) ||
+    s.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{2,4})$/);
+  if (m) {
+    const monName = m[2] && isNaN(m[2]) ? m[2] : m[1];
+    const mon = MONTHS[String(monName).toLowerCase()];
+    let y = parseInt(m[3] || m[2], 10);
+    if (!isNaN(mon)) {
+      if (y < 100) y += 2000;
+      return y * 4 + Math.floor(mon / 3);
     }
   }
 
-  // Fill in the requested label range in order
-  return labels.map((lbl) => {
-    const n = byQuarter[lbl];
-    return Number.isFinite(n) ? n : null;
+  return NaN; // unknown
+}
+
+function last12Fixed(rows, sheetRowNumber) {
+  const idx = Math.max(0, (sheetRowNumber ?? 0) - 2); // SheetDB row2 -> data[0]
+  const row = Array.isArray(rows) ? rows[idx] : null;
+  if (!row) return Array(12).fill(null);
+
+  const labelKey = detectLabelKey(row);
+  const entries = Object.keys(row)
+    .filter((k) => k !== labelKey)
+    .map((k, pos) => {
+      const n = toNumber(row[k]); // robust numeric parse
+      const sk = quarterSortKey(k); // chronological sort key (may be NaN)
+      return { k, n, sk, pos };
+    })
+    .filter((e) => e.n != null); // keep numeric cells only
+
+  if (!entries.length) return Array(12).fill(null);
+
+  // Sort by time if we can, otherwise by appearance order
+  const sorted = entries.slice().sort((a, b) => {
+    const aKey = Number.isFinite(a.sk) ? a.sk : 1e9 + a.pos;
+    const bKey = Number.isFinite(b.sk) ? b.sk : 1e9 + b.pos;
+    return aKey - bKey;
   });
+
+  const last12 = sorted.slice(-12).map((e) => e.n);
+  return last12.length < 12
+    ? Array(12 - last12.length)
+        .fill(null)
+        .concat(last12)
+    : last12;
 }
 
 async function loadRevenue() {
-  // Fetch all sheets in parallel
   const results = await Promise.all(
     TICKERS.map(async (tkr) => {
       const rows = await getSheetByTicker(tkr);
-      const series = extractRevenueSeries(
-        rows,
-        ROWS[tkr].revenue,
-        QUARTER_LABELS
-      );
+      const revRow = ROWS[tkr]?.revenue; // e.g., 9 or 15
+      const series = last12Fixed(rows || [], revRow);
       return { tkr, series };
     })
   );
 
-  // Build datasets for Chart.js
   const datasets = results.map(({ tkr, series }) => ({
     label: BRAND[tkr].label,
     data: series,
@@ -338,7 +467,7 @@ async function loadRevenue() {
   }));
 
   revenueGrowthData.value = {
-    labels: QUARTER_LABELS,
+    labels: QUARTER_LABELS, // static axis as you want
     datasets,
   };
 }
@@ -403,15 +532,54 @@ function lastFromSheetRow(rows, sheetRowNumber) {
 
 // "31 jul 25" / "2025-07-31" / "Q1 2025" → "Q# YYYY"
 function toQuarterLabel(key) {
-  const s = String(key || "").trim();
-  if (!s) return "Latest";
-  let m =
-    s.match(/(\d{4})\D*Q\D*([1-4])/i) || s.match(/Q\D*([1-4])\D*(\d{4})/i);
+  const s0 = String(key || "").trim();
+  if (!s0) return "";
+  const s = s0.replace(/\s+/g, " ");
+
+  // 1) Patterns with explicit Q + Year
+  // Year-first: "2024 Q2", "2024-Q2", "2024Q2"
+  let m = s.match(/^(\d{4})\D*Q\D*([1-4])$/i);
+  if (m) return `Q${m[2]} ${m[1]}`;
+
+  // Q-first: "Q2 2024", "Q2-2024", "Q2'24", "Q2 FY2024", "Quarter 2 2024"
+  m = s.match(
+    /^(?:QTR|QUARTER|Q)\D*([1-4])\D*(?:FY|FQ)?\D*('?)(\d{2}|\d{4})\1?$/i
+  );
   if (m) {
-    const year = m[1]?.length === 4 ? m[1] : m[2];
-    const q = m[2] && m[1]?.length === 4 ? m[2] : m[1];
+    let yy = parseInt(m[3], 10);
+    if (yy < 100) yy += 2000;
+    return `Q${m[1]} ${yy}`;
+  }
+
+  // FY-first: "FY2024 Q2", "FY24 Q2", "FQ24 Q2"
+  m = s.match(
+    /^(?:FY|FQ)\D*('?)(\d{2}|\d{4})\1?\D*(?:QTR|QUARTER|Q)\D*([1-4])$/i
+  );
+  if (m) {
+    let yy = parseInt(m[2], 10);
+    if (yy < 100) yy += 2000;
+    return `Q${m[3]} ${yy}`;
+  }
+
+  // 2) Date-like headers → infer quarter
+  // "2024-06-30" or "30/06/2024" or "06/30/2024"
+  let dm = s.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+  if (dm) {
+    const year = parseInt(dm[1], 10);
+    const mon = parseInt(dm[2], 10) - 1;
+    const q = Math.floor(mon / 3) + 1;
     return `Q${q} ${year}`;
   }
+  dm = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+  if (dm) {
+    let year = parseInt(dm[3], 10);
+    if (year < 100) year += 2000;
+    const mon = parseInt(dm[2], 10) - 1;
+    const q = Math.floor(mon / 3) + 1;
+    return `Q${q} ${year}`;
+  }
+
+  // "Mar 2024" / "31 Jul 25" / "Jul 31 2025"
   const MONTHS = {
     jan: 0,
     feb: 1,
@@ -427,20 +595,22 @@ function toQuarterLabel(key) {
     nov: 10,
     dec: 11,
   };
-  m =
-    s.match(/(\d{1,2})[.\-/\s]*([A-Za-z]{3,})[.\-/\s]*(\d{2,4})/) ||
-    s.match(/([A-Za-z]{3,})[.\-/\s]*(\d{1,2})[.\-/\s]*(\d{2,4})/);
-  if (m) {
-    const mon = MONTHS[m[2]?.toLowerCase()] ?? MONTHS[m[1]?.toLowerCase()];
-    const yy = m[3] ?? m[2];
+  dm =
+    s.match(/^([A-Za-z]{3,})\s+(\d{1,2}),?\s+(\d{2,4})$/) ||
+    s.match(/^(\d{1,2})\s+([A-Za-z]{3,}),?\s+(\d{2,4})$/);
+  if (dm) {
+    const monName = (dm[1].match(/[A-Za-z]{3,}/) ? dm[1] : dm[2]).toLowerCase();
+    const mon = MONTHS[monName];
+    let year = parseInt(dm[3], 10);
+    if (year < 100) year += 2000;
     if (mon != null) {
-      let year = parseInt(yy, 10);
-      if (year < 100) year += 2000;
       const q = Math.floor(mon / 3) + 1;
       return `Q${q} ${year}`;
     }
   }
-  return s;
+
+  // Otherwise give up (we'll fall back to positional alignment)
+  return "";
 }
 
 async function fetchRowsFor(sym) {
