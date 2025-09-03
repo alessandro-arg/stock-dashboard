@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://sheetdb.io/api/v1/a6px8gnsb1zed",
+  baseURL: "https://sheetdb.io/api/v1/qpk581bel77ib",
   headers: { "Content-Type": "application/json" },
   timeout: 15000,
 });

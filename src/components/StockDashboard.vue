@@ -122,81 +122,6 @@ const revenueGrowthData = ref({
   datasets: [],
 });
 
-// const revenueGrowthData = {
-//   labels: [
-//     "Q4 2022",
-//     "Q1 2023",
-//     "Q2 2023",
-//     "Q3 2023",
-//     "Q4 2023",
-//     "Q1 2024",
-//     "Q2 2024",
-//     "Q3 2024",
-//     "Q4 2024",
-//     "Q1 2025",
-//     "Q2 2025",
-//     "Q3 2025",
-//   ],
-//   datasets: [
-//     {
-//       label: "Apple",
-//       data: [50, 15, 18, 22, 25, 28, 32, 35, 38, 42, 45, 48],
-//       borderColor: "#007AFF",
-//       backgroundColor: "#007AFF",
-//       tension: 1.7,
-//       borderWidth: 3,
-//     },
-//     {
-//       label: "Microsoft",
-//       data: [30, 12, 16, 20, 24, 27, 30, 33, 36, 39, 42, 45],
-//       borderColor: "#00BCF2",
-//       backgroundColor: "#00BCF2",
-//       tension: 1.7,
-//       borderWidth: 3,
-//     },
-//     {
-//       label: "Google",
-//       data: [15, 10, 14, 18, 22, 25, 28, 31, 34, 37, 40, 43],
-//       borderColor: "#4285F4",
-//       backgroundColor: "#4285F4",
-//       tension: 1.7,
-//       borderWidth: 3,
-//     },
-//     {
-//       label: "Amazon",
-//       data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
-//       borderColor: "#ff9900",
-//       backgroundColor: "#ff9900",
-//       tension: 1.7,
-//       borderWidth: 3,
-//     },
-//     {
-//       label: "Meta",
-//       data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
-//       borderColor: "#1877f2",
-//       backgroundColor: "#1877f2",
-//       tension: 1.7,
-//       borderWidth: 3,
-//     },
-//     {
-//       label: "Nvidia",
-//       data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
-//       borderColor: "#76b900",
-//       backgroundColor: "#76b900",
-//       tension: 1.7,
-//       borderWidth: 3,
-//     },
-//     {
-//       label: "Tesla",
-//       data: [40, 13, 34, 18, 22, 25, 28, 31, 34, 37, 40, 43],
-//       borderColor: "#cc0000",
-//       backgroundColor: "#cc0000",
-//       tension: 1.7,
-//       borderWidth: 3,
-//     },
-//   ],
-// };
-
 const marketShareData = {
   labels: TICKERS,
   datasets: [
@@ -210,7 +135,6 @@ const marketShareData = {
   ],
 };
 
-// growth row (QoQ %) — for now only AAPL per your note
 const ROWS_GROWTH = { AAPL: 11 };
 
 const ALIASES = { GOOG: ["GOOGL"], GOOGL: ["GOOG"], META: ["FB"] };
@@ -313,133 +237,18 @@ const toNumber = (v) => {
   return n;
 };
 
-function detectLabelKey(row) {
-  const keys = Object.keys(row);
-  for (const k of keys) {
-    const v = row[k];
-    if (v == null) continue;
-    const nv = toNumber(v);
-    if (nv == null && String(v).trim() !== "") return k;
-  }
-  // fallback: if nothing matched, try common names or just the first key
-  const guess = keys.find((k) => /metric|label|name/i.test(k)) || keys[0];
-  return guess;
-}
-
-// Quarter/date sort key. Adds support for pure years like "2016" → Q4 of that year.
-function quarterSortKey(header) {
-  if (!header) return NaN;
-  const s0 = String(header)
-    .trim()
-    .replace(/\u2019/g, "'"); // curly → straight
-  const s = s0.replace(/\s+/g, " ");
-
-  // Pure year: "2016" or "2016'"
-  let m = s.match(/^'?(\d{4})'?$/);
-  if (m) {
-    const y = parseInt(m[1], 10);
-    return y * 4 + 3; // treat as Q4 of that year
-  }
-
-  // Q-first: Q2 2024, Q2'24, Quarter 2 2024, Q2-FY2024
-  m = s.match(
-    /^(?:QTR|QUARTER|Q)\D*([1-4])\D*(?:FY|FQ)?\D*('?)(\d{2}|\d{4})\1?$/i
-  );
-  if (m) {
-    let y = parseInt(m[3], 10);
-    if (y < 100) y += 2000;
-    const q = parseInt(m[1], 10);
-    return y * 4 + (q - 1);
-  }
-
-  // Year-first: 2024 Q2, 2024-Q2, 2024Q2
-  m = s.match(/^(\d{4})\D*Q\D*([1-4])$/i) || s.match(/^(\d{4})Q([1-4])$/i);
-  if (m) return parseInt(m[1], 10) * 4 + (parseInt(m[2], 10) - 1);
-
-  // FY-first: FY2024 Q2, FY24 Q2
-  m = s.match(
-    /^(?:FY|FQ)\D*('?)(\d{2}|\d{4})\1?\D*(?:QTR|QUARTER|Q)\D*([1-4])$/i
-  );
-  if (m) {
-    let y = parseInt(m[2], 10);
-    if (y < 100) y += 2000;
-    return y * 4 + (parseInt(m[3], 10) - 1);
-  }
-
-  // ISO-like: 2024-06-30 or 2024/06/30
-  m = s.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
-  if (m) {
-    const y = parseInt(m[1], 10),
-      mon = parseInt(m[2], 10) - 1;
-    return y * 4 + Math.floor(mon / 3);
-  }
-
-  // D/M/Y or M/D/Y
-  m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
-  if (m) {
-    let y = parseInt(m[3], 10);
-    if (y < 100) y += 2000;
-    const mon = parseInt(m[2], 10) - 1;
-    return y * 4 + Math.floor(mon / 3);
-  }
-
-  // Month name: "Jul 2024", "31 Jul 2024"
-  const MONTHS = {
-    jan: 0,
-    feb: 1,
-    mar: 2,
-    apr: 3,
-    may: 4,
-    jun: 5,
-    jul: 6,
-    aug: 7,
-    sep: 8,
-    sept: 8,
-    oct: 9,
-    nov: 10,
-    dec: 11,
-  };
-  m =
-    s.match(/^([A-Za-z]{3,})\s+(\d{2,4})$/) ||
-    s.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{2,4})$/);
-  if (m) {
-    const monName = m[2] && isNaN(m[2]) ? m[2] : m[1];
-    const mon = MONTHS[String(monName).toLowerCase()];
-    let y = parseInt(m[3] || m[2], 10);
-    if (!isNaN(mon)) {
-      if (y < 100) y += 2000;
-      return y * 4 + Math.floor(mon / 3);
-    }
-  }
-
-  return NaN; // unknown
-}
-
-function last12Fixed(rows, sheetRowNumber) {
+function last12Raw(rows, sheetRowNumber) {
   const idx = Math.max(0, (sheetRowNumber ?? 0) - 2); // SheetDB row2 -> data[0]
   const row = Array.isArray(rows) ? rows[idx] : null;
   if (!row) return Array(12).fill(null);
 
-  const labelKey = detectLabelKey(row);
-  const entries = Object.keys(row)
-    .filter((k) => k !== labelKey)
-    .map((k, pos) => {
-      const n = toNumber(row[k]); // robust numeric parse
-      const sk = quarterSortKey(k); // chronological sort key (may be NaN)
-      return { k, n, sk, pos };
-    })
-    .filter((e) => e.n != null); // keep numeric cells only
+  const numeric = [];
+  for (const k of Object.keys(row)) {
+    const n = toNumber(row[k]);
+    if (n != null) numeric.push(n);
+  }
 
-  if (!entries.length) return Array(12).fill(null);
-
-  // Sort by time if we can, otherwise by appearance order
-  const sorted = entries.slice().sort((a, b) => {
-    const aKey = Number.isFinite(a.sk) ? a.sk : 1e9 + a.pos;
-    const bKey = Number.isFinite(b.sk) ? b.sk : 1e9 + b.pos;
-    return aKey - bKey;
-  });
-
-  const last12 = sorted.slice(-12).map((e) => e.n);
+  const last12 = numeric.slice(-12);
   return last12.length < 12
     ? Array(12 - last12.length)
         .fill(null)
@@ -451,15 +260,15 @@ async function loadRevenue() {
   const results = await Promise.all(
     TICKERS.map(async (tkr) => {
       const rows = await getSheetByTicker(tkr);
-      const revRow = ROWS[tkr]?.revenue; // e.g., 9 or 15
-      const series = last12Fixed(rows || [], revRow);
+      const revRow = ROWS[tkr]?.revenue; // 1-based row number in your map
+      const series = last12Raw(rows || [], revRow, 2); // raw, oldest->newest, ±2 rows tolerance
       return { tkr, series };
     })
   );
 
   const datasets = results.map(({ tkr, series }) => ({
     label: BRAND[tkr].label,
-    data: series,
+    data: series, // <-- [oldest … newest]
     borderColor: BRAND[tkr].color,
     backgroundColor: BRAND[tkr].color,
     tension: 0.35,
@@ -467,7 +276,7 @@ async function loadRevenue() {
   }));
 
   revenueGrowthData.value = {
-    labels: QUARTER_LABELS, // static axis as you want
+    labels: QUARTER_LABELS, // Q4 2022 … Q3 2025 (oldest → newest)
     datasets,
   };
 }
